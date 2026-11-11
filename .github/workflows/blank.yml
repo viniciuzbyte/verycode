@@ -15,6 +15,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check workspace files
+        run: |
+          echo "=== Current working directory ==="
+          pwd
+          echo "=== Root files ==="
+          ls -la
+          echo "=== Find all files ==="
+          find . -maxdepth 3 -not -path '*/.*'
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -28,13 +37,3 @@ jobs:
 
       - name: Build obfuscated APK with Very-Enckotlin
         run: gradle :app:veryEnckotlin
-
-      - name: Upload APK and R8 mapping
-        uses: actions/upload-artifact@v4
-        with:
-          name: verycode-enckotlin-apk
-          path: |
-            app/build/outputs/apk/debug/app-debug.apk
-            app/build/outputs/mapping/debug/mapping.txt
-          if-no-files-found: error
-          retention-days: 14
