@@ -11,9 +11,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: verycode
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -37,7 +34,7 @@ jobs:
         with:
           name: verycode-enckotlin-apk
           path: |
-            verycode/app/build/outputs/apk/debug/app-debug.apk
-            verycode/app/build/outputs/mapping/debug/mapping.txt
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/mapping/debug/mapping.txt
           if-no-files-found: error
           retention-days: 14
