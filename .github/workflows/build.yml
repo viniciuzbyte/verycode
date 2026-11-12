@@ -17,30 +17,62 @@ permissions:
 
 jobs:
   build:
-    name: Build Android APK
+    name: Build VeryCode Android
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup JDK 17
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
+      - name: Extract VeryCode Source
+        shell: bash
+        run: |
+          set -e
+
+          ZIP_FILE="verycode.zip"
+
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "::error::verycode.zip not found in repository root."
+            echo "Available files:"
+            ls -lah
+            exit 1
+          fi
+
+          echo "Extracting $ZIP_FILE..."
+
+          unzip -oq "$ZIP_FILE" -d .
+
+          echo "Extraction completed."
+          echo "Extracted structure:"
+          find . -maxdepth 3 -type f \
+            \( -name "settings.gradle.kts" \
+            -o -name "settings.gradle" \
+            -o -name "build.gradle.kts" \
+            -o -name "AndroidManifest.xml" \)
+
       - name: Locate Android Project
         id: project
         shell: bash
         run: |
-          echo "Searching for Android project..."
+          set -e
 
           PROJECT_DIR=""
 
-          if [ -f "settings.gradle.kts" ] || [ -f "settings.gradle" ]; then
-            PROJECT_DIR="."
-          else
+          for dir in "." "verycode"; do
+            if [ -f "$dir/settings.gradle.kts" ] || \
+               [ -f "$dir/settings.gradle" ]; then
+              PROJECT_DIR="$dir"
+              break
+            fi
+          done
+
+          if [ -z "$PROJECT_DIR" ]; then
             FOUND=$(find . -maxdepth 8 \
               \( -name "settings.gradle.kts" -o -name "settings.gradle" \) \
               -not -path "*/.gradle/*" \
@@ -49,7 +81,6 @@ jobs:
 
             if [ -z "$FOUND" ]; then
               echo "::error::Gradle settings file not found."
-              echo "Repository structure:"
               find . -maxdepth 5 -type f | head -150
               exit 1
             fi
@@ -64,26 +95,32 @@ jobs:
           fi
 
           echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
-          echo "Android project found: $PROJECT_DIR"
+
+          echo "Project root: $PROJECT_DIR"
+          ls -lah "$PROJECT_DIR"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.7"
-          cache-cleanup: on-success
 
       - name: Generate Gradle Wrapper
         working-directory: ${{ steps.project.outputs.dir }}
         shell: bash
         run: |
-          if [ ! -f "gradlew" ]; then
-            echo "Generating Gradle wrapper..."
-            gradle wrapper --gradle-version 8.7 --distribution-type bin
+          set -e
+
+          if [ ! -f gradlew ]; then
+            echo "Generating Gradle Wrapper..."
+            gradle wrapper \
+              --gradle-version 8.7 \
+              --distribution-type bin \
+              --no-daemon
           fi
 
           chmod +x gradlew
 
-      - name: Validate Gradle Configuration
+      - name: Validate Gradle
         working-directory: ${{ steps.project.outputs.dir }}
         run: ./gradlew tasks --no-daemon
 
@@ -95,28 +132,30 @@ jobs:
         working-directory: ${{ steps.project.outputs.dir }}
         run: ./gradlew assembleRelease --no-daemon
 
-      - name: Verify APK Files
+      - name: Verify APK
         working-directory: ${{ steps.project.outputs.dir }}
         shell: bash
         run: |
-          DEBUG_APK="app/build/outputs/apk/debug/app-debug.apk"
-          RELEASE_APK="app/build/outputs/apk/release/app-release-unsigned.apk"
+          set -e
 
-          if [ ! -f "$DEBUG_APK" ]; then
-            echo "::error::Debug APK not found."
+          DEBUG="app/build/outputs/apk/debug/app-debug.apk"
+          RELEASE="app/build/outputs/apk/release/app-release-unsigned.apk"
+
+          if [ ! -f "$DEBUG" ]; then
+            echo "::error::Debug APK missing."
             exit 1
           fi
 
-          if [ ! -f "$RELEASE_APK" ]; then
-            echo "::error::Release APK not found."
+          if [ ! -f "$RELEASE" ]; then
+            echo "::error::Release APK missing."
             exit 1
           fi
 
           echo "Debug APK:"
-          ls -lh "$DEBUG_APK"
+          ls -lh "$DEBUG"
 
           echo "Release APK:"
-          ls -lh "$RELEASE_APK"
+          ls -lh "$RELEASE"
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
